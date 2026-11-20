@@ -1,0 +1,45 @@
+import json
+import logging
+import os
+
+import boto3
+from botocore.exceptions import ClientError
+
+logger = logging.getLogger()
+logger.setLevel(logging.INFO)
+
+glue = boto3.client("glue")
+
+# Glue job name. Override with the JOB_NAME env var if needed.
+JOB_NAME = os.environ.get("JOB_NAME", "skypointsmembersjob")
+
+
+def lambda_handler(event, context):
+    """Start a run of the Glue visual job. Optional job arguments can be
+    passed in the event as {"Arguments": {"--key": "value"}}."""
+    event = event or {}
+    arguments = event.get("Arguments", {})
+
+    try:
+        params = {"JobName": JOB_NAME}
+        if arguments:
+            params["Arguments"] = arguments
+
+        response = glue.start_job_run(**params)
+        run_id = response["JobRunId"]
+        logger.info("Started Glue job '%s' with run id %s", JOB_NAME, run_id)
+
+        return {
+            "statusCode": 200,
+            "body": json.dumps({"jobName": JOB_NAME, "jobRunId": run_id}),
+        }
+
+    except glue.exceptions.ConcurrentRunsExceededException:
+        logger.warning("Job '%s' already running (max concurrency reached)", JOB_NAME)
+        return {
+            "statusCode": 409,
+            "body": json.dumps({"jobName": JOB_NAME, "error": "Job already running"}),
+        }
+    except ClientError as e:
+        logger.error("Failed to start job '%s': %s", JOB_NAME, e)
+        raise
