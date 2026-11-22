@@ -39,13 +39,6 @@ FROM myDataSource
 WHERE (Member_Name IS NULL OR TRIM(Member_Name) = '')
    OR (Member_Id IS NULL OR TRIM(Member_Id) = '')
    OR (Enrollment_Date IS NULL OR TRIM(Enrollment_Date) = '')
-   OR (Last_Flight_Date IS NULL OR TRIM(Last_Flight_Date) = '')
-   OR (Tier_Code IS NULL OR TRIM(Tier_Code) = '')
-   OR (Agent_Name IS NULL OR TRIM(Agent_Name) = '')
-   OR (State IS NULL OR TRIM(State) = '')
-   OR (Country IS NULL OR TRIM(Country) = '')
-   OR (DOB IS NULL OR TRIM(DOB) = '')
-   OR (Is_Active IS NULL OR TRIM(Is_Active) = '')
 '''
 SQLQuery_node1795169723855 = sparkSqlQuery(glueContext, query = SqlQuery25, mapping = {"myDataSource":ChangeSchema_node1795168950976}, transformation_ctx = "SQLQuery_node1795169723855")
 
@@ -56,13 +49,8 @@ FROM myDataSource
 WHERE Member_Name IS NOT NULL AND TRIM(Member_Name) != ''
   AND Member_Id IS NOT NULL AND TRIM(Member_Id) != ''
   AND Enrollment_Date IS NOT NULL AND TRIM(Enrollment_Date) != ''
-  AND Last_Flight_Date IS NOT NULL AND TRIM(Last_Flight_Date) != ''
-  AND Tier_Code IS NOT NULL AND TRIM(Tier_Code) != ''
-  AND Agent_Name IS NOT NULL AND TRIM(Agent_Name) != ''
   AND State IS NOT NULL AND TRIM(State) != ''
   AND Country IS NOT NULL AND TRIM(Country) != ''
-  AND DOB IS NOT NULL AND TRIM(DOB) != ''
-  AND Is_Active IS NOT NULL AND TRIM(Is_Active) != ''
 '''
 SQLQuery_node1795169705477 = sparkSqlQuery(glueContext, query = SqlQuery26, mapping = {"myDataSource":ChangeSchema_node1795168950976}, transformation_ctx = "SQLQuery_node1795169705477")
 
