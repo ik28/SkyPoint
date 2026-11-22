@@ -177,6 +177,69 @@ LIMIT  10;
 
 ---
 
+## 🤖 Ask it in plain English
+
+Ask the Gold layer a question in everyday language and get a plain-English answer. A Python app (`App/`) sends the question to an LLM (Claude), which writes one read-only `SELECT`; a read-only Snowflake role runs it, and the LLM explains the rows. It runs on a free Snowflake account because only ordinary SQL runs inside Snowflake.
+
+```text
+question -> Claude writes one SELECT -> guard checks it -> read-only role runs it -> plain-English answer
+```
+
+```text
+$ python App/ask_skypoints.py "Which country has the highest stale member percentage?"
+
+COUNTRY  STALE_MEMBER_PERCENTAGE
+-------  -----------------------
+UK       96.51
+
+The UK has the highest percentage of stale members in the SkyPoints loyalty program, with 96.51%. The calculation excludes data from country 'XX'.
+(Excluded country code 'XX' from the rankings.)
+```
+
+✅ Verified end to end. The answer matches the Gold country view (581 stale of 602 UK members), and the terminal proof is in `SkyPoints_Execution_Evidence.docx`, Section 6.
+
+**Guardrails**
+- Runs as `SKYPOINTS_READER`, a role with `SELECT` on two Gold views only (`App/setup_readonly_role.sql`). This is the real protection.
+- A second check in code allows one `SELECT`/`WITH` statement and blocks write and admin keywords.
+- 60 second query timeout, at most 50 rows returned, credentials only in a git-ignored `.env`.
+
+More questions to try: *How many Platinum, Gold and Silver members are there in each country? Which partner has the most completed miles? Show pending vs completed miles by country.* Setup steps are in [`App/README.md`](App/README.md).
+
+> The sample data is old, so most members count as stale and "last 30 days" questions return little. The app reports what the data says.
+
+**Also in the repo:** `Snowflake/Gold/Cortex/Semantic_View.sql`, a Cortex Analyst semantic view (`SKYPOINTS_SV`) that defines business terms and metrics, tested with `SEMANTIC_VIEW()`. A Cortex Agent was created on it but cannot be run on a Snowflake trial account.
+
+---|---|---|
+| `Snowflake/Gold/Cortex/Semantic_View.sql` | Cortex Analyst semantic view `SKYPOINTS_SV`: business terms, ~40 metrics, synonyms, and rules such as "only `COMPLETED` miles count as redeemed" | ✅ Deployed and tested with `SEMANTIC_VIEW()` |
+| Cortex Agent on top of it | Plain-English chat inside Snowflake | ⚠️ Created, but Snowflake blocks running agents on trial accounts ("Access denied for trial accounts") |
+| `App/` | Python app: question → LLM writes one read-only `SELECT` → runs with a read-only role → plain-English answer | ✅ Verified end-to-end on a free account |
+
+Because the agent could not run on the trial, `App/` does the same job outside Snowflake: only ordinary SQL runs on the free account, and the language model runs separately.
+
+```text
+$ python App/ask_skypoints.py "Which country has the highest stale member percentage?"
+
+COUNTRY  STALE_MEMBER_PERCENTAGE
+-------  -----------------------
+UK       96.51
+
+The UK has the highest percentage of stale members in the SkyPoints loyalty program, with 96.51%. The calculation excludes data from country 'XX'.
+(Excluded country code 'XX' from the rankings.)
+```
+
+That answer matches the direct SQL check on the semantic view (581 stale of 602 UK members).
+
+**Guardrails**
+- Runs as `SKYPOINTS_READER`, a role with `SELECT` on two Gold views only (`App/setup_readonly_role.sql`). This is the real protection.
+- A second check in code allows one `SELECT`/`WITH` statement and blocks write and admin keywords.
+- 60 second query timeout, at most 50 rows returned, credentials only in a git-ignored `.env`.
+
+More questions to try: *How many Platinum, Gold and Silver members are there in each country? Which partner has the most completed miles? Show pending vs completed miles by country.* Setup steps are in [`App/README.md`](App/README.md).
+
+> Note: the sample data is old, so most members count as stale and "last 30 days" questions return little. The app reports what the data says.
+
+---
+
 ## 🧳 Data contract
 
 **Member flat file**
@@ -231,10 +294,11 @@ SkyPoint/
 ├── Snowflake/
 │   ├── Bronze/   Storage_Integration · Stages · Tables · Stored_Procedures
 │   ├── Silver/   Tables · Views · Stored_Procedures   (load → clean → merge)
-│   └── Gold/     Tables · Views · Stored_Procedures   (country sync, horizon views)
+│   └── Gold/     Tables · Views · Stored_Procedures · Cortex   (country sync, horizon views, semantic view)
 ├── Airflow/
 │   └── skypoints_medallion_etl.py              # the daily DAG with built-in DQ gates
-└── Data/SampleData/                            # IND / USA / AUS sample files (inconsistent headers, bad dates)
+├── Data/SampleData/                            # IND / USA / AUS sample files (inconsistent headers, bad dates)
+└── App/                                        # plain-English assistant: LLM writes SQL, read-only role runs it
 ```
 
 ---
@@ -261,6 +325,7 @@ SkyPoint/
    CALL skypoints.gold.sp_refresh_gold_views();
    ```
 8. **Schedule it.** Drop `Airflow/skypoints_medallion_etl.py` into your DAGs folder, create a Snowflake connection called `snowflake_default`, and unpause `skypoints_medallion_etl`.
+9. **Optional: ask questions in plain English.** Run `Snowflake/Gold/Cortex/Semantic_View.sql`, then follow [`App/README.md`](App/README.md) (read-only role, `.env`, `python App/ask_skypoints.py "..."`).
 
 > 🔐 **Never commit credentials or account-specific identifiers.** Keep AWS keys in environment variables or an IAM role, and treat role ARNs and account IDs as configuration, not code.
 
@@ -287,6 +352,8 @@ SkyPoint/
 - Parameterise bucket names and role ARNs through a single config
 - Automated alerting on quarantine volume spikes
 - A dashboard on top of the Gold views
+- Run the Cortex Agent end-to-end on a paid account (the agent and semantic view are already defined)
+- Unit tests for the SQL guard in `App/`, and a small evaluation set of questions with expected answers
 
 ---
 
